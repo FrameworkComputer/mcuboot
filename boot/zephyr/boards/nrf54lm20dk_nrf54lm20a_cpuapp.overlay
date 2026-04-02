@@ -1,0 +1,43 @@
+/*
+ * Copyright (c) 2025 Nordic Semiconductor ASA
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/ {
+	chosen {
+		/* MCUboot must be placed in the boot partition, not slot0 */
+		zephyr,code-partition = &boot_partition;
+		/*
+		 * Point uart-mcumgr to a different UART than console so that
+		 * UART console output (uart20) can coexist with CDC ACM serial
+		 * recovery. The CDC ACM code path doesn't actually use this
+		 * chosen — it only reads the cdc_acm_uart node.
+		 */
+		zephyr,uart-mcumgr = &uart30;
+	};
+};
+
+&uart30 {
+	status = "okay";
+};
+
+/* Enlarge boot partition to 96 KB for the new USB stack, shift slot0 */
+&boot_partition {
+	reg = <0x0 DT_SIZE_K(96)>;
+};
+
+&slot0_partition {
+	reg = <0x18000 DT_SIZE_K(934)>;
+};
+
+&slot1_partition {
+	reg = <0x102000 DT_SIZE_K(934)>;
+};
+
+/* Add USB CDC ACM device for MCUboot serial recovery */
+&zephyr_udc0 {
+	cdc_acm_uart0: cdc_acm_uart0 {
+		compatible = "zephyr,cdc-acm-uart";
+	};
+};

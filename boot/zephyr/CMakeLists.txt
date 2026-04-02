@@ -196,11 +196,11 @@ if(CONFIG_BOOT_SIGNATURE_TYPE_ECDSA_P256 OR CONFIG_BOOT_ENCRYPT_EC256)
     zephyr_link_libraries(nrfxlib_crypto)
   endif()
 
-  if(CONFIG_MBEDTLS_CONFIG_FILE)
+  if(CONFIG_MBEDTLS_CFG_FILE)
     # Since here we are not using Zephyr's mbedTLS but rather our own, we need
     # to set MBEDTLS_CONFIG_FILE ourselves. When using Zephyr's copy, this
     # variable is set by its Kconfig in the Zephyr codebase.
-    zephyr_compile_definitions(MBEDTLS_CONFIG_FILE="${CONFIG_MBEDTLS_CONFIG_FILE}")
+    zephyr_compile_definitions(MBEDTLS_CONFIG_FILE="${CONFIG_MBEDTLS_CFG_FILE}")
   endif()
 elseif(CONFIG_BOOT_SIGNATURE_TYPE_NONE)
   zephyr_include_directories(
@@ -243,7 +243,7 @@ elseif(CONFIG_BOOT_SIGNATURE_TYPE_ED25519 OR CONFIG_BOOT_ENCRYPT_X25519)
       ${TINYCRYPT_DIR}/source/utils.c
       ${TINYCRYPT_SHA512_DIR}/source/sha512.c
     )
-    zephyr_compile_definitions(MBEDTLS_CONFIG_FILE="${CONFIG_MBEDTLS_CONFIG_FILE}")
+    zephyr_compile_definitions(MBEDTLS_CONFIG_FILE="${CONFIG_MBEDTLS_CFG_FILE}")
   endif()
 
   zephyr_include_directories(
@@ -311,6 +311,10 @@ if(CONFIG_MCUBOOT_SERIAL)
     if(CONFIG_BOOT_MGMT_CUSTOM_STORAGE_ERASE)
       zephyr_sources(boot_serial_extension_zephyr_basic.c)
     endif()
+  endif()
+
+  if(CONFIG_BOOT_SERIAL_CDC_ACM)
+    zephyr_sources(usbd_cdc_serial.c)
   endif()
 endif()
 
@@ -437,7 +441,7 @@ function(dt_get_erase_write_block_sizes node erase_block_size write_block_size)
     set(current_compatible)
     dt_prop(current_compatible PATH "${current_path}" PROPERTY "compatible")
 
-    if("soc-nv-flash" IN_LIST current_compatible)
+    if("${current_compatible}" STREQUAL "soc-nv-flash")
       dt_prop(erase_size PATH "${current_path}" PROPERTY "erase-block-size")
       dt_prop(write_size PATH "${current_path}" PROPERTY "write-block-size")
       set(${erase_block_size} ${erase_size} PARENT_SCOPE)
@@ -461,10 +465,10 @@ function(dt_get_nvm_device node nvm_device)
     set(current_compatible)
     dt_prop(current_compatible PATH "${current_path}" PROPERTY "compatible")
 
-    if("soc-nv-flash" IN_LIST current_compatible)
+    if("${current_compatible}" STREQUAL "soc-nv-flash")
       set(${nvm_device} ${current_path} PARENT_SCOPE)
       break()
-    elseif("fixed-partitions" IN_LIST current_compatible)
+    elseif("${current_compatible}" STREQUAL "fixed-partitions")
       string(FIND "${current_path}" "/" node_final_slash REVERSE)
       string(SUBSTRING "${current_path}" 0 ${node_final_slash} current_path)
       set(${nvm_device} ${current_path} PARENT_SCOPE)

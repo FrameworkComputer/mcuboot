@@ -1,0 +1,16 @@
+/*
+ * Partition layout for apps using MCUboot with enlarged boot partition.
+ * Pass this overlay when building applications with CONFIG_BOOTLOADER_MCUBOOT=y
+ */
+
+&boot_partition {
+	reg = <0x0 DT_SIZE_K(96)>;
+};
+
+&slot0_partition {
+	reg = <0x18000 DT_SIZE_K(934)>;
+};
+
+&slot1_partition {
+	reg = <0x102000 DT_SIZE_K(934)>;
+};
