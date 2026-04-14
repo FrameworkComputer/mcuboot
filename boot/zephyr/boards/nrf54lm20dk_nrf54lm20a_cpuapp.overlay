@@ -17,10 +17,20 @@
 		zephyr,uart-mcumgr = &uart30;
 	};
 	buttons {
+		/* Daisy Pairing Button */
 		button0: button_0 {
 			gpios = <&gpio3 10 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;
 			label = "Push button 0";
 			zephyr,code = <INPUT_KEY_0>;
+		};
+	};
+	/* Daisy Blue Indicator LED */
+	leds {
+		compatible = "gpio-leds";
+
+		led0: led_0 {
+			gpios = <&gpio2 1 GPIO_ACTIVE_HIGH>;
+			label = "Blue LED 0";
 		};
 	};
 };
