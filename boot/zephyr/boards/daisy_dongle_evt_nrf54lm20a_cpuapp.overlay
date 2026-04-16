@@ -18,7 +18,7 @@
 	};
 
 	aliases {
-		mcuboot-button0 = &pairing_button;
+		mcuboot-button0 = &bootloader_button;
 	};
 };
 
