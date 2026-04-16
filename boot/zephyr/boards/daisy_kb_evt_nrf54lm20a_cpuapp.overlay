@@ -19,7 +19,7 @@
 
 	aliases {
 		mcuboot-button0 = &pairing_button;
-		mcuboot-led0 = &led_b4;
+		mcuboot-led0 = &led_g;
 	};
 };
 
