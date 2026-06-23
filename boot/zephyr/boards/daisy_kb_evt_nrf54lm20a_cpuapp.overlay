@@ -42,3 +42,13 @@
 		compatible = "zephyr,cdc-acm-uart";
 	};
 };
+
+/* Disable app-only peripherals so their drivers (I2C, MFD, regulator,
+ * sensor) don't get pulled into the bootloader image. */
+&i2c21 { status = "disabled"; };
+&i2c22 { status = "disabled"; };
+&npm1300 { status = "disabled"; };
+&npm1300_charger { status = "disabled"; };
+&npm1300_regulators { status = "disabled"; };
+&bl_power { status = "disabled"; };
+&tp_power { status = "disabled"; };
