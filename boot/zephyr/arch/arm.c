@@ -16,6 +16,11 @@
 #include <zephyr/linker/linker-defs.h>
 #include <soc.h>
 
+#ifdef CONFIG_BOOT_SERIAL_CDC_ACM
+#include <zephyr/usb/usbd.h>
+#include "usbd_cdc_serial.h"
+#endif
+
 #if defined(CONFIG_BOOT_DISABLE_CACHES)
 #include <zephyr/cache.h>
 #endif
@@ -94,6 +99,21 @@ void do_boot(const struct boot_rsp *rsp)
 #ifdef CONFIG_USB_DEVICE_STACK
 	/* Disable the USB to prevent it from firing interrupts */
 	usb_disable();
+#endif
+#ifdef CONFIG_BOOT_SERIAL_CDC_ACM
+	{
+		int usbd_rc;
+
+		usbd_rc = usbd_disable(boot_usb_cdc_serial_get_context());
+
+		/* -EALREADY is expected on normal boot: USB was never enabled
+		 * (lazy init -- only initialized when recovery is triggered).
+		 * Any other error indicates a real problem.
+		 */
+		if (usbd_rc != 0 && usbd_rc != -EALREADY) {
+			BOOT_LOG_WRN("USB disable failed: %d", usbd_rc);
+		}
+	}
 #endif
 #if CONFIG_MCUBOOT_CLEANUP_ARM_CORE
 	cleanup_arm_interrupts(); /* Disable and acknowledge all interrupts */
