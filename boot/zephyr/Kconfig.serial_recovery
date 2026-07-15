@@ -83,6 +83,17 @@ config BOOT_SERIAL_CDC_ACM_SELF_POWERED
 	  the USB bus. Only enable this if the device is powered by an
 	  independent supply during serial recovery mode.
 
+config BOOT_SERIAL_CDC_ACM_BCD_DEVICE
+	hex "USB bcdDevice value for CDC ACM serial recovery"
+	default 0x0000
+	range 0x0000 0x9999
+	help
+	  Device release number (bcdDevice) presented during serial recovery
+	  mode, in binary-coded decimal. Use this to version the bootloader
+	  so hosts can distinguish recovery-mode revisions from the device
+	  descriptor alone. Without this, Zephyr's default encodes the kernel
+	  version instead.
+
 config BOOT_SERIAL_CDC_ACM_MAX_POWER
 	int "USB bMaxPower value for CDC ACM serial recovery"
 	default 125

@@ -160,6 +160,13 @@ int boot_usb_cdc_serial_init(void)
 	usbd_self_powered(&boot_usbd,
 			  boot_usbd_attributes & USB_SCD_SELF_POWERED);
 
+	err = usbd_device_set_bcd_device(&boot_usbd,
+					 CONFIG_BOOT_SERIAL_CDC_ACM_BCD_DEVICE);
+	if (err) {
+		BOOT_LOG_ERR("Failed to set bcdDevice: %d", err);
+		return err;
+	}
+
 	err = usbd_msg_register_cb(&boot_usbd, boot_usbd_msg_cb);
 	if (err) {
 		BOOT_LOG_ERR("Failed to register message callback: %d", err);
