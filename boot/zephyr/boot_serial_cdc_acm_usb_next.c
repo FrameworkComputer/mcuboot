@@ -108,6 +108,13 @@ int boot_serial_cdc_acm_usb_next_enable(void)
 		return rc;
 	}
 
+	rc = usbd_device_set_bcd_device(&boot_cdc_acm_serial,
+					CONFIG_BOOT_SERIAL_CDC_ACM_BCD_DEVICE);
+	if (rc) {
+		BOOT_LOG_ERR("Failed to set bcdDevice: %d", rc);
+		return rc;
+	}
+
 	rc = usbd_init(&boot_cdc_acm_serial);
 	if (rc) {
 		BOOT_LOG_ERR("Failed to initialize usb device: %d", rc);

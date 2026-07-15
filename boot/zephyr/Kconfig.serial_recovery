@@ -254,6 +254,17 @@ config BOOT_SERIAL_CDC_ACM_MAX_POWER
 	help
 	  bMaxPower value in the configuration in 2 mA units.
 
+config BOOT_SERIAL_CDC_ACM_BCD_DEVICE
+	hex "MCUBoot serial recovery USB device release number (bcdDevice)"
+	default 0x0000
+	range 0x0000 0x9999
+	help
+	  Device release number (bcdDevice) presented during serial recovery
+	  mode, in binary-coded decimal. Use this to version the bootloader
+	  so hosts can distinguish recovery-mode revisions from the device
+	  descriptor alone. Without this, Zephyr's default encodes the kernel
+	  version instead.
+
 endif
 
 endif # MCUBOOT_SERIAL
