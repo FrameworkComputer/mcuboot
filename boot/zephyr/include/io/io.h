@@ -104,9 +104,41 @@ static inline bool io_boot_skip_serial_recovery()
     );
 
     rr &= ~allowed_reset_reasons;
-#endif /* NRF_RESETINFO */
 
     return !(rr == 0 || (rr & NRFX_RESET_REASON_RESETPIN_MASK));
+#else
+    /* Only a plain wake-up from System OFF (GPIO DETECT, LPCOMP, NFC, VBUS,
+     * GRTC) skips the IO-based entrance: a button that doubles as the wake-up
+     * source must not drop the device into recovery on every wake. Every
+     * other reset honors the button.
+     *
+     * RESETREAS is cumulative until software clears it, and Zephyr clears it
+     * right before entering System OFF. So a wake-up shows the wake bit alone,
+     * while any further bit means the device has reset again since (soft
+     * reset, watchdog, lockup, ...) without the application clearing the
+     * register -- typically an application that faults early in boot. An
+     * allowlist of reset reasons would keep vetoing the button forever there
+     * because of the stale wake bit, which is exactly when recovery is needed.
+     * An empty register is a power-on or brown-out reset.
+     */
+    const uint32_t system_off_wake_reasons = (
+        NRFX_RESET_REASON_OFF_MASK
+#if NRFX_RESET_REASON_HAS_LPCOMP
+        | NRFX_RESET_REASON_LPCOMP_MASK
+#endif
+#if NRFX_RESET_REASON_HAS_NFC
+        | NRFX_RESET_REASON_NFC_MASK
+#endif
+#if NRFX_RESET_REASON_HAS_VBUS
+        | NRFX_RESET_REASON_VBUS_MASK
+#endif
+#if NRFX_RESET_REASON_HAS_GRTC
+        | NRFX_RESET_REASON_GRTC_MASK
+#endif
+    );
+
+    return rr != 0 && (rr & ~system_off_wake_reasons) == 0;
+#endif /* NRF_RESETINFO */
 }
 #else
 static inline bool io_boot_skip_serial_recovery()
