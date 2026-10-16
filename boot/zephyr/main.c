@@ -171,6 +171,13 @@ static void boot_serial_enter()
     mcuboot_status_change(MCUBOOT_STATUS_SERIAL_DFU_ENTERED);
 
     BOOT_LOG_INF("Enter the serial recovery mode");
+
+#ifdef CONFIG_BOOT_SERIAL_EXIT_GPIO
+    /* Before the console: with CDC ACM, boot_console_init() blocks until the
+     * host opens the port, and the exit is most needed when it never does. */
+    io_serial_exit_gpio_init();
+#endif
+
     rc = boot_console_init();
     if (rc != 0) {
         BOOT_LOG_DBG("Error initializing boot console. rc = %d", rc);

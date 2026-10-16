@@ -249,6 +249,28 @@ config BOOT_MGMT_CUSTOM_STORAGE_ERASE
 
 endif # ENABLE_MGMT_PERUSER
 
+config BOOT_SERIAL_EXIT_GPIO
+	bool "Leave serial recovery when a GPIO changes level"
+	default y if $(dt_alias_enabled,mcuboot-exit-switch)
+	depends on GPIO
+	help
+	  Watch the GPIO behind the mcuboot-exit-switch devicetree alias
+	  (typically a slide switch) while in serial recovery mode, and
+	  reboot once it settles at a level other than the one it had on
+	  entering recovery. The application then boots as usual, or
+	  serial recovery is entered again if there is no valid image.
+
+	  Recovery is entered by holding a separate input
+	  (mcuboot-button0) through reset, so the two cannot conflict.
+
+config BOOT_SERIAL_EXIT_GPIO_DEBOUNCE_MS
+	int "Exit GPIO debounce time [ms]"
+	default 50
+	depends on BOOT_SERIAL_EXIT_GPIO
+	help
+	  How long the exit GPIO must stay at its new level, counted from
+	  its last edge, before MCUboot reboots.
+
 menu "Entrance methods"
 
 menuconfig BOOT_SERIAL_ENTRANCE_GPIO

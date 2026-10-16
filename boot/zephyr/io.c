@@ -40,6 +40,10 @@ BOOT_LOG_MODULE_DECLARE(mcuboot);
 #include <zephyr/retention/bootmode.h>
 #endif
 
+#ifdef CONFIG_BOOT_SERIAL_EXIT_GPIO
+#include <zephyr/sys/reboot.h>
+#endif
+
 /* Validate serial recovery configuration */
 #ifdef CONFIG_MCUBOOT_SERIAL
 #if !defined(CONFIG_BOOT_SERIAL_ENTRANCE_GPIO) && \
@@ -179,6 +183,79 @@ bool io_detect_pin(void)
     return (bool)pin_active;
 }
 #endif
+
+#ifdef CONFIG_BOOT_SERIAL_EXIT_GPIO
+#define EXIT_SWITCH_NODE DT_ALIAS(mcuboot_exit_switch)
+
+#if DT_NODE_EXISTS(EXIT_SWITCH_NODE) && DT_NODE_HAS_PROP(EXIT_SWITCH_NODE, gpios)
+static const struct gpio_dt_spec exit_switch = GPIO_DT_SPEC_GET(EXIT_SWITCH_NODE, gpios);
+#else
+#error "Serial recovery exit GPIO must be declared in device tree as 'mcuboot_exit_switch'"
+#endif
+
+static int exit_switch_entry_level;
+static struct gpio_callback exit_switch_cb;
+
+/* Runs in ISR context, debounce time after the last edge. */
+static void exit_switch_settled(struct k_timer *timer)
+{
+    int level = gpio_pin_get_dt(&exit_switch);
+
+    (void)timer;
+
+    if (level < 0 || level == exit_switch_entry_level) {
+        return;
+    }
+
+    BOOT_LOG_INF("Exit switch changed, leaving serial recovery");
+    sys_reboot(SYS_REBOOT_COLD);
+}
+
+static K_TIMER_DEFINE(exit_switch_timer, exit_switch_settled, NULL);
+
+static void exit_switch_edge(const struct device *port, struct gpio_callback *cb,
+                             gpio_port_pins_t pins)
+{
+    (void)port;
+    (void)cb;
+    (void)pins;
+
+    /* Restart on every edge so contact bounce only delays the check. */
+    k_timer_start(&exit_switch_timer, K_MSEC(CONFIG_BOOT_SERIAL_EXIT_GPIO_DEBOUNCE_MS),
+                  K_NO_WAIT);
+}
+
+void io_serial_exit_gpio_init(void)
+{
+    int rc;
+
+    if (!gpio_is_ready_dt(&exit_switch)) {
+        BOOT_LOG_ERR("Exit switch GPIO device is not ready");
+        return;
+    }
+
+    rc = gpio_pin_configure_dt(&exit_switch, GPIO_INPUT);
+    if (rc != 0) {
+        BOOT_LOG_ERR("Failed to configure exit switch: %d", rc);
+        return;
+    }
+
+    exit_switch_entry_level = gpio_pin_get_dt(&exit_switch);
+    if (exit_switch_entry_level < 0) {
+        BOOT_LOG_ERR("Failed to read exit switch: %d", exit_switch_entry_level);
+        return;
+    }
+
+    gpio_init_callback(&exit_switch_cb, exit_switch_edge, BIT(exit_switch.pin));
+    rc = gpio_add_callback_dt(&exit_switch, &exit_switch_cb);
+    if (rc == 0) {
+        rc = gpio_pin_interrupt_configure_dt(&exit_switch, GPIO_INT_EDGE_BOTH);
+    }
+    if (rc != 0) {
+        BOOT_LOG_ERR("Failed to arm exit switch: %d", rc);
+    }
+}
+#endif /* CONFIG_BOOT_SERIAL_EXIT_GPIO */
 
 #if defined(CONFIG_BOOT_SERIAL_PIN_RESET) || defined(CONFIG_BOOT_FIRMWARE_LOADER_PIN_RESET)
 bool io_detect_pin_reset(void)

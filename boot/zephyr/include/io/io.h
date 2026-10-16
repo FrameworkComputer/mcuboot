@@ -46,6 +46,14 @@ void io_led_set(int value);
  */
 bool io_detect_pin(void);
 
+#ifdef CONFIG_BOOT_SERIAL_EXIT_GPIO
+/*
+ * Starts watching the exit GPIO: once it changes level and stays there,
+ * the device reboots out of serial recovery mode.
+ */
+void io_serial_exit_gpio_init(void);
+#endif
+
 /*
  * Checks if board was reset using reset pin and if device should stay in
  * serial recovery mode
