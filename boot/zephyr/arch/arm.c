@@ -12,6 +12,9 @@
 #include <zephyr/devicetree.h>
 #include <zephyr/drivers/flash.h>
 #include <zephyr/drivers/timer/system_timer.h>
+#ifdef CONFIG_BOOT_KEEP_LFCLK
+#include <zephyr/drivers/clock_control/nrf_clock_control.h>
+#endif
 #include <zephyr/usb/usb_device.h>
 #include <zephyr/linker/linker-defs.h>
 #include <soc.h>
@@ -90,6 +93,19 @@ void do_boot(const struct boot_rsp *rsp)
 	vt = (struct arm_vector_table *)(flash_base +
 					 rsp->br_image_off +
 					 rsp->br_hdr->ih_hdr_size);
+#endif
+
+#ifdef CONFIG_BOOT_KEEP_LFCLK
+	{
+		/* One more reference, never released: sys_clock_disable() drops
+		 * the system timer's, and the LFCLK keeps running for the app.
+		 */
+		static struct onoff_client lfclk_cli;
+
+		sys_notify_init_spinwait(&lfclk_cli.notify);
+		(void)onoff_request(z_nrf_clock_control_get_onoff(CLOCK_CONTROL_NRF_SUBSYS_LF),
+				    &lfclk_cli);
+	}
 #endif
 
 	if (IS_ENABLED(CONFIG_SYSTEM_TIMER_HAS_DISABLE_SUPPORT)) {

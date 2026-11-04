@@ -505,6 +505,17 @@ config BOOT_SIGNATURE_KEY_FILE
 	  e.g. \${CMAKE_CURRENT_LIST_DIR} will allow referencing a file in that directory, these
 	  will be automatically configured by the build system.
 
+config BOOT_KEEP_LFCLK
+	bool "Leave the low-frequency clock running for the application"
+	depends on CLOCK_CONTROL_NRF && SYSTEM_TIMER_HAS_DISABLE_SUPPORT
+	help
+	  sys_clock_disable() before the jump releases the LFCLK, which stops
+	  it. With this option MCUboot holds one more reference, so the clock,
+	  and a crystal source with it, keeps running into the application.
+	  Combined with SYSTEM_CLOCK_NO_WAIT and a GRTC on LFLPRC, the LFXO
+	  then starts up while MCUboot validates the image instead of while
+	  the application waits for it.
+
 config MCUBOOT_CLEANUP_ARM_CORE
 	bool "Perform core cleanup before chain-load the application"
 	depends on CPU_CORTEX_M || ARMV7_R
