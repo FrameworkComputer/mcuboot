@@ -91,6 +91,14 @@ boot_image_validate_once(const struct flash_area *fa_p,
     rc = boot_read_swap_state(fa_p, &state);
     if (rc != 0)
         FIH_RET(FIH_FAILURE);
+#if defined(MCUBOOT_VALIDATE_PRIMARY_SLOT_ONCE_KEEP_HASH)
+    if (state.magic == BOOT_MAGIC_GOOD && state.image_ok == BOOT_FLAG_SET) {
+        bootutil_img_validate_skip_sig = true;
+        FIH_CALL(boot_image_validate, fih_rc, fa_p, hdr);
+        bootutil_img_validate_skip_sig = false;
+        FIH_RET(fih_rc);
+    }
+#endif
     if (state.magic != BOOT_MAGIC_GOOD
             || state.image_ok != BOOT_FLAG_SET) {
         /* At least validate the image once */

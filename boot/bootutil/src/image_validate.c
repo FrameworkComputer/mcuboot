@@ -193,6 +193,10 @@ static const uint16_t allowed_unprot_tlvs[] = {
 };
 #endif
 
+#if defined(MCUBOOT_VALIDATE_PRIMARY_SLOT_ONCE_KEEP_HASH)
+bool bootutil_img_validate_skip_sig;
+#endif
+
 /*
  * Verify the integrity of the image.
  * Return non-zero if image could not be validated/does not validate.
@@ -409,6 +413,15 @@ bootutil_img_validate(struct boot_loader_state *state,
             if (rc) {
                 goto out;
             }
+#if defined(MCUBOOT_VALIDATE_PRIMARY_SLOT_ONCE_KEEP_HASH)
+            if (bootutil_img_validate_skip_sig) {
+                /* Signature checked on an earlier boot of this image
+                 * (single_loader.c); its hash is still checked below. */
+                FIH_SET(valid_signature, FIH_SUCCESS);
+                key_id = -1;
+                break;
+            }
+#endif
 #ifndef MCUBOOT_SIGN_PURE
             FIH_CALL(bootutil_verify_sig, valid_signature, hash, sizeof(hash),
                                                            buf, len, key_id);

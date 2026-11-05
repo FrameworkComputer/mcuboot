@@ -595,6 +595,16 @@ config BOOT_VALIDATE_SLOT0_ONCE
 	  low end devices with as a compromise lowering the security level.
 	  If unsure, leave at the default value.
 
+config BOOT_VALIDATE_SLOT0_ONCE_KEEP_HASH
+	bool "Still check the image hash on boots after the first"
+	depends on BOOT_VALIDATE_SLOT0_ONCE
+	help
+	  With BOOT_VALIDATE_SLOT0_ONCE, boots after the validated one skip
+	  validation entirely. With this, they still compute the image's hash
+	  and compare it with the one in its TLVs, and skip only the signature
+	  check. Catches a corrupted image on every boot; the signature (the
+	  slow part with a hardware hash) is checked once after each update.
+
 config BOOT_PREFER_SWAP_OFFSET
 	bool "Prefer the newer swap offset algorithm"
 	default y if !$(dt_nodelabel_enabled,scratch_partition) && !SOC_FAMILY_ESPRESSIF_ESP32

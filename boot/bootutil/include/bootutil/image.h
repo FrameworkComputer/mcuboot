@@ -250,6 +250,12 @@ bootutil_img_hash(struct boot_loader_state *state,
                   uint8_t *seed, int seed_len
                  );
 
+#if defined(MCUBOOT_VALIDATE_PRIMARY_SLOT_ONCE_KEEP_HASH)
+/* Set by the single loader around a validation whose signature was already
+ * checked on an earlier boot of the same image. */
+extern bool bootutil_img_validate_skip_sig;
+#endif
+
 #ifdef __cplusplus
 }
 #endif
