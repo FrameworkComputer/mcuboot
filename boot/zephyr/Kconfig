@@ -176,6 +176,16 @@ config BOOT_IMG_HASH_ALG_SHA512_ALLOW
 	help
 	  Hidden option set by configurations that allow SHA512
 
+config BOOT_SHA256_NRF_CRACEN
+	bool "SHA-256 on the nRF54L CRACEN hash engine"
+	depends on BOOT_USE_TINYCRYPT && BOOT_IMG_HASH_DIRECTLY_ON_STORAGE
+	depends on SOC_SERIES_NRF54L
+	help
+	  Hash the image (and keys) with the CRACEN hash engine through its
+	  DMA instead of tinycrypt: ~5 ms instead of ~400 ms for a 600 KB
+	  image at 128 MHz. Falls back to tinycrypt if the engine reports an
+	  error. Signature verification stays in software.
+
 config BOOT_IMG_HASH_DIRECTLY_ON_STORAGE
 	bool "Hash calculation functions access storage through address space"
 	depends on !BOOT_ENCRYPT_IMAGE

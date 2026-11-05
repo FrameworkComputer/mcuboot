@@ -89,6 +89,10 @@ if(CONFIG_BOOT_SHARE_BACKEND_RETENTION)
   zephyr_sources(shared_data.c)
 endif()
 
+if(CONFIG_BOOT_SHA256_NRF_CRACEN)
+  zephyr_sources(cracen_sha256.c)
+endif()
+
 # Generic bootutil sources and includes.
 zephyr_include_directories(${BOOT_DIR}/bootutil/include)
 zephyr_sources(

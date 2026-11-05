@@ -209,7 +209,48 @@ static inline int bootutil_sha_finish(bootutil_sha_context *ctx,
 
 #endif /* MCUBOOT_USE_MBED_TLS */
 
-#if defined(MCUBOOT_USE_TINYCRYPT)
+#if defined(MCUBOOT_USE_TINYCRYPT) && defined(MCUBOOT_SHA256_CRACEN) && !defined(MCUBOOT_SHA512)
+/* SHA-256 on the nRF54L CRACEN engine; see boot/zephyr/cracen_sha256.c. */
+#include <stdbool.h>
+#define BOOTUTIL_CRACEN_SHA_SEGS 4
+struct bootutil_cracen_sha256 {
+    struct {
+        const void *p;
+        uint32_t len;
+    } seg[BOOTUTIL_CRACEN_SHA_SEGS];
+    uint32_t n;
+    uint32_t total;
+    bool overflow;
+};
+typedef struct bootutil_cracen_sha256 bootutil_sha_context;
+void bootutil_cracen_sha256_init(struct bootutil_cracen_sha256 *ctx);
+int bootutil_cracen_sha256_update(struct bootutil_cracen_sha256 *ctx, const void *data,
+                                  uint32_t len);
+int bootutil_cracen_sha256_finish(struct bootutil_cracen_sha256 *ctx, uint8_t *out);
+
+static inline int bootutil_sha_init(bootutil_sha_context *ctx)
+{
+    bootutil_cracen_sha256_init(ctx);
+    return 0;
+}
+
+static inline int bootutil_sha_drop(bootutil_sha_context *ctx)
+{
+    (void)ctx;
+    return 0;
+}
+
+static inline int bootutil_sha_update(bootutil_sha_context *ctx, const void *data,
+                                      uint32_t data_len)
+{
+    return bootutil_cracen_sha256_update(ctx, data, data_len);
+}
+
+static inline int bootutil_sha_finish(bootutil_sha_context *ctx, uint8_t *output)
+{
+    return bootutil_cracen_sha256_finish(ctx, output);
+}
+#elif defined(MCUBOOT_USE_TINYCRYPT)
 #if defined(MCUBOOT_SHA512)
 typedef struct tc_sha512_state_struct bootutil_sha_context;
 #else
