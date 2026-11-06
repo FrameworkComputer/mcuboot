@@ -526,6 +526,22 @@ config BOOT_KEEP_LFCLK
 	  then starts up while MCUboot validates the image instead of while
 	  the application waits for it.
 
+config BOOT_NRF_RRAMC_LOCK_BOOT
+	bool "Write-protect MCUboot's own partition before booting the app"
+	depends on SOC_SERIES_NRF54L
+	help
+	  Configure one RRAMC region over boot_partition as read and execute
+	  only, and lock that configuration, right before the jump. Until
+	  the next reset the application can't write or erase the
+	  bootloader, so no application, however broken, can take the
+	  recovery path away. SWD can still reprogram it (after a reset).
+
+config BOOT_NRF_RRAMC_LOCK_REGION
+	int "RRAMC region used for the lock"
+	depends on BOOT_NRF_RRAMC_LOCK_BOOT
+	default 4
+	range 0 5
+
 config MCUBOOT_CLEANUP_ARM_CORE
 	bool "Perform core cleanup before chain-load the application"
 	depends on CPU_CORTEX_M || ARMV7_R
@@ -1237,6 +1253,24 @@ config MCUBOOT_UUID_CID
 	help
 	  Provide an image class identification scheme to prevent processing
 	  images for a different CPU or device produced by the same vendor.
+
+config BOOT_UUID_VID_NAME
+	string "Vendor UUID the images must carry"
+	depends on MCUBOOT_UUID_VID
+	help
+	  Expected IMAGE_TLV_UUID_VID, in the same form as the application's
+	  MCUBOOT_IMGTOOL_UUID_VID_NAME: a domain name (UUIDv5 in the DNS
+	  namespace, as imgtool --vid computes it) or a raw UUID.
+
+config BOOT_UUID_CID_NAME
+	string "Image class UUID the images must carry"
+	depends on MCUBOOT_UUID_CID
+	help
+	  Expected IMAGE_TLV_UUID_CID, in the same form as the application's
+	  MCUBOOT_IMGTOOL_UUID_CID_NAME: a class name (UUIDv5 in the
+	  namespace of the vendor UUID, as imgtool --cid computes it) or a
+	  raw UUID. Images without this TLV, or with another value, fail
+	  validation.
 
 config BOOT_IMAGE_ACCESS_HOOKS
 	bool "Hooks for overriding MCUboot's native routines"

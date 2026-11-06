@@ -141,6 +141,38 @@ if(CONFIG_BOOT_FIH_PROFILE_HIGH)
   endif()
 endif()
 
+# Expected image vendor and class UUIDs (IMAGE_TLV_UUID_VID / _CID),
+# computed the way imgtool computes them from a name.
+function(boot_uuid_bytes out ns value)
+  if(value MATCHES "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+     OR value MATCHES "^[0-9a-fA-F]{32}$")
+    set(u ${value})
+  else()
+    string(UUID u NAMESPACE ${ns} NAME ${value} TYPE SHA1)
+  endif()
+  string(REPLACE "-" "" hex ${u})
+  string(REGEX REPLACE "(..)" "0x\\1," bytes ${hex})
+  set(${out} ${bytes} PARENT_SCOPE)
+  set(${out}_UUID ${u} PARENT_SCOPE)
+endfunction()
+if(CONFIG_MCUBOOT_UUID_VID OR CONFIG_MCUBOOT_UUID_CID)
+  set(uuid_ns_dns 6ba7b810-9dad-11d1-80b4-00c04fd430c8)
+  if(CONFIG_MCUBOOT_UUID_VID)
+    boot_uuid_bytes(vid ${uuid_ns_dns} "${CONFIG_BOOT_UUID_VID_NAME}")
+    zephyr_compile_definitions("BOOT_UUID_VID_BYTES=${vid}")
+    message(STATUS "MCUboot expects image vendor UUID ${vid_UUID}")
+  endif()
+  if(CONFIG_MCUBOOT_UUID_CID)
+    if(NOT CONFIG_MCUBOOT_UUID_VID)
+      message(FATAL_ERROR "BOOT_UUID_CID_NAME needs the vendor UUID as its namespace")
+    endif()
+    boot_uuid_bytes(cid ${vid_UUID} "${CONFIG_BOOT_UUID_CID_NAME}")
+    zephyr_compile_definitions("BOOT_UUID_CID_BYTES=${cid}")
+    message(STATUS "MCUboot expects image class UUID ${cid_UUID}")
+  endif()
+  zephyr_sources(${BOOT_DIR}/zephyr/boot_uuid.c)
+endif()
+
 if(CONFIG_SINGLE_APPLICATION_SLOT_RAM_LOAD)
   zephyr_sources(
     ${BOOT_DIR}/zephyr/single_loader.c
