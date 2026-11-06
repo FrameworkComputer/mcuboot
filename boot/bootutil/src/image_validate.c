@@ -598,7 +598,15 @@ bootutil_img_validate(struct boot_loader_state *state,
              * a device to memory. The pointer is beginning of image in flash,
              * so offset of area, the range is header + image + protected tlvs.
              */
-            FIH_CALL(bootutil_verify_img, valid_signature, (void *)(base + flash_area_get_off(fap)),
+            /* With swap-using-offset the image in the secondary slot starts
+             * it.start_off bytes into the area, not at its beginning.
+             */
+            FIH_CALL(bootutil_verify_img, valid_signature,
+#if defined(MCUBOOT_SWAP_USING_OFFSET)
+                     (void *)(base + flash_area_get_off(fap) + it.start_off),
+#else
+                     (void *)(base + flash_area_get_off(fap)),
+#endif
                      hdr->ih_hdr_size + hdr->ih_img_size + hdr->ih_protect_tlv_size,
                      buf, len, key_id);
 #endif
