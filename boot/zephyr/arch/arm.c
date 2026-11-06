@@ -18,6 +18,10 @@
 #include <zephyr/usb/usb_device.h>
 #include <zephyr/linker/linker-defs.h>
 #include <soc.h>
+#ifdef CONFIG_BOOT_NRF_RRAMC_LOCK_BOOT
+#include <hal/nrf_rramc.h>
+#include <zephyr/storage/flash_map.h>
+#endif
 
 #ifdef CONFIG_BOOT_SERIAL_CDC_ACM
 #include <zephyr/usb/usbd.h>
@@ -93,6 +97,28 @@ void do_boot(const struct boot_rsp *rsp)
 	vt = (struct arm_vector_table *)(flash_base +
 					 rsp->br_image_off +
 					 rsp->br_hdr->ih_hdr_size);
+#endif
+
+#ifdef CONFIG_BOOT_NRF_RRAMC_LOCK_BOOT
+	{
+		/* Read and execute only, configuration locked until reset: the
+		 * application can't erase or overwrite the bootloader.
+		 */
+		const nrf_rramc_region_config_t lock = {
+			.address = FIXED_PARTITION_OFFSET(boot_partition),
+			.permissions = NRF_RRAMC_REGION_PERM_READ_MASK |
+				       NRF_RRAMC_REGION_PERM_EXECUTE_MASK,
+			.writeonce = false,
+			.lock = true,
+			.size_kb = FIXED_PARTITION_SIZE(boot_partition) / 1024,
+		};
+
+		BUILD_ASSERT(FIXED_PARTITION_SIZE(boot_partition) % 1024 == 0 &&
+			     FIXED_PARTITION_SIZE(boot_partition) / 1024 <=
+			     (RRAMC_REGION_CONFIG_SIZE_Msk >> RRAMC_REGION_CONFIG_SIZE_Pos),
+			     "boot_partition doesn't fit one RRAMC region");
+		nrf_rramc_region_config_set(NRF_RRAMC, CONFIG_BOOT_NRF_RRAMC_LOCK_REGION, &lock);
+	}
 #endif
 
 #ifdef CONFIG_BOOT_KEEP_LFCLK
