@@ -8,9 +8,12 @@
  * caller's buffers must stay valid until bootutil_sha_finish(), which is the
  * case with BOOT_IMG_HASH_DIRECTLY_ON_STORAGE (one update over the
  * memory-mapped slot) and for the key hashes. finish() then runs the whole
- * chain in one CryptoMaster job with hardware padding. If the job reports a
- * bus error or doesn't finish, the same chunks are hashed with tinycrypt, so
- * a failure costs time, not the boot.
+ * chain in one CryptoMaster job with hardware padding. The digest is taken
+ * only from a job the engine reports complete (pusher stopped, nothing busy,
+ * no bus error); in every other case the same chunks are hashed with
+ * tinycrypt, so an engine that fails or never starts costs time, not the
+ * boot. A valid image must never be refused over the accelerator: serial
+ * recovery could not repair that.
  *
  * Programming model as in Nordic's sxsymcrypt (hash.c, cmdma.h): config
  * word = mode | HW padding (bit 9) | final (bit 10), tagged for the hash
@@ -34,6 +37,12 @@
 #define TAG_IGN(n)          ((uint32_t)(n) << 8)
 /* ~ a few seconds at 128 MHz; the engine needs ~5 ms for 600 KB. */
 #define POLL_LIMIT          50000000u
+#define CM_INT_ALL          (NRF_CRACEN_CM_INT_FETCH_BLOCK_END_MASK | \
+                             NRF_CRACEN_CM_INT_FETCH_STOPPED_MASK | \
+                             NRF_CRACEN_CM_INT_FETCH_ERROR_MASK | \
+                             NRF_CRACEN_CM_INT_PUSH_BLOCK_END_MASK | \
+                             NRF_CRACEN_CM_INT_PUSH_STOPPED_MASK | \
+                             NRF_CRACEN_CM_INT_PUSH_ERROR_MASK)
 
 void bootutil_cracen_sha256_init(struct bootutil_cracen_sha256 *ctx)
 {
@@ -61,6 +70,10 @@ static int sw_fallback(struct bootutil_cracen_sha256 *ctx, uint8_t *out)
 {
     struct tc_sha256_state_struct s;
 
+    if (ctx->overflow) {
+        /* Chunks were dropped: there is no digest of the whole message. */
+        return -1;
+    }
     tc_sha256_init(&s);
     for (uint32_t i = 0; i < ctx->n; i++) {
         tc_sha256_update(&s, ctx->seg[i].p, ctx->seg[i].len);
@@ -110,6 +123,10 @@ static int hw_run(struct bootutil_cracen_sha256 *ctx, uint8_t *out)
                                       (nrf_cracen_cm_config_indirect_mask_t)
                                       (NRF_CRACEN_CM_CONFIG_INDIRECT_FETCH_MASK |
                                        NRF_CRACEN_CM_CONFIG_INDIRECT_PUSH_MASK));
+    /* Nothing left from an earlier job that could pass for this one's
+     * result: neither its "stopped" flags nor its digest. */
+    nrf_cracen_cm_int_clear(NRF_CRACENCORE, CM_INT_ALL);
+    memset(digest, 0, sizeof(digest));
     __DMB();
     nrf_cracen_cm_start(NRF_CRACENCORE);
 
@@ -122,7 +139,10 @@ static int hw_run(struct bootutil_cracen_sha256 *ctx, uint8_t *out)
                                         NRF_CRACEN_CM_STATUS_BUSY_FETCH_MASK |
                                         NRF_CRACEN_CM_STATUS_BUSY_PUSH_MASK |
                                         NRF_CRACEN_CM_STATUS_PUSH_WAITING_MASK);
-        if (!busy) {
+        /* "Not busy" alone is also what a job that hasn't started yet, or
+         * never does, looks like. The pusher stopping is the positive
+         * sign that the digest was written out. */
+        if (!busy && (pend & NRF_CRACEN_CM_INT_PUSH_STOPPED_MASK)) {
             rc = 0;
             break;
         }
