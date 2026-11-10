@@ -257,19 +257,42 @@ config BOOT_SERIAL_EXIT_GPIO
 	  Watch the GPIO behind the mcuboot-exit-switch devicetree alias
 	  (typically a slide switch) while in serial recovery mode, and
 	  reboot once it settles at a level other than the one it had on
-	  entering recovery. The application then boots as usual, or
-	  serial recovery is entered again if there is no valid image.
+	  entering recovery and holds it for ten debounce times. The
+	  application then boots as usual, or serial recovery is entered
+	  again if there is no valid image. The switch is ignored while
+	  the host is sending.
 
 	  Recovery is entered by holding a separate input
 	  (mcuboot-button0) through reset, so the two cannot conflict.
+
+config BOOT_SERIAL_NO_VBUS_HOOK
+	bool "Call a hook when serial recovery has no USB power for a while"
+	depends on BOOT_SERIAL_CDC_ACM && SOC_NRF54LM20A
+	help
+	  Serial recovery over USB keeps the SoC and its USB stack running.
+	  On a battery device that entered recovery by itself (no bootable
+	  image, repeated failed boots) and has no cable attached, that runs
+	  the battery flat, and without a cable recovery is of no use. With
+	  this option MCUboot calls boot_serial_no_vbus_hook(), which the
+	  board or project provides, once VBUS has been absent and the host
+	  silent for BOOT_SERIAL_NO_VBUS_TIMEOUT seconds in a row. The hook
+	  is expected to cut the power in a way that plugging in undoes,
+	  such as a PMIC's ship mode.
+
+config BOOT_SERIAL_NO_VBUS_TIMEOUT
+	int "Time without USB power before the hook is called [s]"
+	default 300
+	range 10 3600
+	depends on BOOT_SERIAL_NO_VBUS_HOOK
 
 config BOOT_SERIAL_EXIT_GPIO_DEBOUNCE_MS
 	int "Exit GPIO debounce time [ms]"
 	default 50
 	depends on BOOT_SERIAL_EXIT_GPIO
 	help
-	  How long the exit GPIO must stay at its new level, counted from
-	  its last edge, before MCUboot reboots.
+	  How long after its last edge the exit GPIO is first read, and the
+	  interval of the nine further reads that must all show the new
+	  level before MCUboot reboots.
 
 menu "Entrance methods"
 

@@ -28,6 +28,7 @@
 #include <zephyr/linker/linker-defs.h>
 
 #include "target.h"
+#include "io/io.h"
 #include "bootutil/bootutil_log.h"
 
 BOOT_LOG_MODULE_DECLARE(mcuboot);
@@ -42,6 +43,11 @@ BOOT_LOG_MODULE_DECLARE(mcuboot);
 
 #ifdef CONFIG_BOOT_SERIAL_EXIT_GPIO
 #include <zephyr/sys/reboot.h>
+#endif
+
+#ifdef CONFIG_BOOT_SERIAL_NO_VBUS_HOOK
+#include <zephyr/sys/sys_io.h>
+#include <nrfx.h>
 #endif
 
 /* Validate serial recovery configuration */
@@ -195,15 +201,28 @@ static const struct gpio_dt_spec exit_switch = GPIO_DT_SPEC_GET(EXIT_SWITCH_NODE
 
 static int exit_switch_entry_level;
 static struct gpio_callback exit_switch_cb;
+static uint8_t exit_switch_confirms;
 
-/* Runs in ISR context, debounce time after the last edge. */
+/* How long the new level must hold, without a further edge, to count as a
+ * flipped switch rather than noise on the line. */
+#define EXIT_SWITCH_CONFIRMS 10
+
+/* Runs in ISR context, debounce time after the last edge, then once per
+ * debounce time while the level differs from the one on entry. */
 static void exit_switch_settled(struct k_timer *timer)
 {
     int level = gpio_pin_get_dt(&exit_switch);
 
-    (void)timer;
+    /* Not while the host is talking: a line that picks up noise, or a
+     * switch that lost contact, must not be able to end an upload. The
+     * host leaves recovery with its own reset command. */
+    if (level < 0 || level == exit_switch_entry_level || io_serial_host_active()) {
+        exit_switch_confirms = 0;
+        return;
+    }
 
-    if (level < 0 || level == exit_switch_entry_level) {
+    if (++exit_switch_confirms < EXIT_SWITCH_CONFIRMS) {
+        k_timer_start(timer, K_MSEC(CONFIG_BOOT_SERIAL_EXIT_GPIO_DEBOUNCE_MS), K_NO_WAIT);
         return;
     }
 
@@ -221,6 +240,7 @@ static void exit_switch_edge(const struct device *port, struct gpio_callback *cb
     (void)pins;
 
     /* Restart on every edge so contact bounce only delays the check. */
+    exit_switch_confirms = 0;
     k_timer_start(&exit_switch_timer, K_MSEC(CONFIG_BOOT_SERIAL_EXIT_GPIO_DEBOUNCE_MS),
                   K_NO_WAIT);
 }
@@ -228,6 +248,7 @@ static void exit_switch_edge(const struct device *port, struct gpio_callback *cb
 void io_serial_exit_gpio_init(void)
 {
     int rc;
+    int level;
 
     if (!gpio_is_ready_dt(&exit_switch)) {
         BOOT_LOG_ERR("Exit switch GPIO device is not ready");
@@ -240,7 +261,18 @@ void io_serial_exit_gpio_init(void)
         return;
     }
 
-    exit_switch_entry_level = gpio_pin_get_dt(&exit_switch);
+    /* The level to compare against for as long as recovery lasts: take it
+     * once the input, enabled just now, reads the same twice in a row. A
+     * wrong value here would turn the first stray edge into an exit. */
+    level = gpio_pin_get_dt(&exit_switch);
+    for (int i = 0; i < 50; i++) {
+        k_busy_wait(1000);
+        exit_switch_entry_level = gpio_pin_get_dt(&exit_switch);
+        if (exit_switch_entry_level == level) {
+            break;
+        }
+        level = exit_switch_entry_level;
+    }
     if (exit_switch_entry_level < 0) {
         BOOT_LOG_ERR("Failed to read exit switch: %d", exit_switch_entry_level);
         return;
@@ -256,6 +288,73 @@ void io_serial_exit_gpio_init(void)
     }
 }
 #endif /* CONFIG_BOOT_SERIAL_EXIT_GPIO */
+
+#ifdef CONFIG_MCUBOOT_SERIAL
+/* Uptime of the last bytes from the host; 0 until the first ones. */
+static volatile uint32_t host_rx_ms;
+
+/* The host counts as talking for this long after its last bytes. */
+#define HOST_ACTIVE_MS 10000
+
+void io_serial_host_activity(void)
+{
+    host_rx_ms = k_uptime_get_32() | 1;
+}
+
+bool io_serial_host_active(void)
+{
+    uint32_t last = host_rx_ms;
+
+    return last != 0 && k_uptime_get_32() - last < HOST_ACTIVE_MS;
+}
+#endif /* CONFIG_MCUBOOT_SERIAL */
+
+#ifdef CONFIG_BOOT_SERIAL_NO_VBUS_HOOK
+#define NO_VBUS_POLL_S 5
+
+/* As in Zephyr's regulator_nrf_vregusb.c: the STATUS register of the
+ * nRF54LM20 VBUS detector, which the MDK doesn't describe. The detector
+ * runs once the USB stack is enabled. */
+#define VREGUSB_STATUS_OFFSET  0x400
+#define VREGUSB_STATUS_VBUSDET BIT(2)
+
+/* Its own thread: the recovery loop never yields, the hook may need to
+ * sleep (a bus transfer), and the system work queue's stack is small. */
+static void no_vbus_thread(void *p1, void *p2, void *p3)
+{
+    uint32_t no_vbus_s = 0;
+
+    (void)p1;
+    (void)p2;
+    (void)p3;
+
+    for (;;) {
+        k_sleep(K_SECONDS(NO_VBUS_POLL_S));
+
+        if ((sys_read32((mem_addr_t)NRF_VREGUSB + VREGUSB_STATUS_OFFSET) &
+             VREGUSB_STATUS_VBUSDET) || io_serial_host_active()) {
+            no_vbus_s = 0;
+            continue;
+        }
+
+        if (no_vbus_s < CONFIG_BOOT_SERIAL_NO_VBUS_TIMEOUT) {
+            no_vbus_s += NO_VBUS_POLL_S;
+            continue;
+        }
+
+        /* Again on every poll for as long as the device is still up. */
+        boot_serial_no_vbus_hook();
+    }
+}
+
+K_THREAD_DEFINE(no_vbus_tid, 2048, no_vbus_thread, NULL, NULL, NULL, K_PRIO_COOP(1), 0,
+                K_TICKS_FOREVER);
+
+void io_serial_no_vbus_init(void)
+{
+    k_thread_start(no_vbus_tid);
+}
+#endif /* CONFIG_BOOT_SERIAL_NO_VBUS_HOOK */
 
 #if defined(CONFIG_BOOT_SERIAL_PIN_RESET) || defined(CONFIG_BOOT_FIRMWARE_LOADER_PIN_RESET)
 bool io_detect_pin_reset(void)

@@ -25,6 +25,7 @@
 
 #if defined(CONFIG_BOOT_SERIAL_CDC_ACM)
 #include "usbd_cdc_serial.h"
+#include "io/io.h"
 #endif
 
 #if defined(CONFIG_BOOT_SERIAL_UART) && defined(CONFIG_UART_CONSOLE) && \
@@ -234,6 +235,7 @@ boot_uart_fifo_callback(const struct device *dev, void *user_data)
 		if (rx <= 0) {
 			break;
 		}
+		io_serial_host_activity();
 
 		const uint8_t *p = rx_batch_buf;
 		const uint8_t *batch_end = p + rx;

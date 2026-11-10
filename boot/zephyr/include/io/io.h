@@ -54,6 +54,31 @@ bool io_detect_pin(void);
 void io_serial_exit_gpio_init(void);
 #endif
 
+#ifdef CONFIG_MCUBOOT_SERIAL
+/*
+ * Called by the serial transport when bytes arrive from the host;
+ * io_serial_host_active() is true for a while after that.
+ */
+void io_serial_host_activity(void);
+bool io_serial_host_active(void);
+#endif
+
+#ifdef CONFIG_BOOT_SERIAL_NO_VBUS_HOOK
+/*
+ * Starts the check that calls boot_serial_no_vbus_hook() once serial
+ * recovery has gone BOOT_SERIAL_NO_VBUS_TIMEOUT seconds without USB power.
+ */
+void io_serial_no_vbus_init(void);
+
+/*
+ * Provided by the board or project: cut the power, typically with a PMIC's ship
+ * mode. Called from a thread of its own, and again every few seconds while
+ * the device stays up without USB power, so an attempt that didn't take is
+ * repeated.
+ */
+void boot_serial_no_vbus_hook(void);
+#endif
+
 /*
  * Checks if board was reset using reset pin and if device should stay in
  * serial recovery mode

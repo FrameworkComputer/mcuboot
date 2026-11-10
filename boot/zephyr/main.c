@@ -177,6 +177,9 @@ static void boot_serial_enter()
      * host opens the port, and the exit is most needed when it never does. */
     io_serial_exit_gpio_init();
 #endif
+#ifdef CONFIG_BOOT_SERIAL_NO_VBUS_HOOK
+    io_serial_no_vbus_init();
+#endif
 
     rc = boot_console_init();
     if (rc != 0) {
